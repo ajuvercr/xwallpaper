@@ -23,6 +23,7 @@
 #include <pixman.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #include "config.h"
 
@@ -49,6 +50,43 @@
 	SAFE_MUL(res, res, (y));	\
 } while (0)
 
+typedef struct pixman_image_it {
+	pixman_image_t	**pixman_images;
+	int size, at;
+} pixman_image_it_t;
+
+static
+pixman_image_t	*first_pixman_image(pixman_image_it_t *it)
+{
+	return it->pixman_images[0];
+}
+static
+pixman_image_it_t *from_one(pixman_image_t *pixman_image)
+{
+	pixman_image_it_t * out = malloc(sizeof(pixman_image_it_t));
+	out->at = 0;
+	out->size = 1;
+	out->pixman_images = malloc(sizeof(pixman_image_t *));
+	out->pixman_images[0] = pixman_image;
+	return out;
+}
+
+static
+pixman_image_t *next_image(pixman_image_it_t *it)
+{
+	it->at++;
+	if(it->at >= it->size)
+		it->at = 0;
+	pixman_image_t *out = it->pixman_images[it->at];
+	return out;
+}
+
+static
+pixman_image_t *current_image(pixman_image_it_t *it)
+{
+	return it->pixman_images[it->at];
+}
+
 typedef struct wp_box {
 	uint16_t	width;
 	uint16_t	height;
@@ -58,18 +96,20 @@ typedef struct wp_box {
 
 typedef struct wp_buffer {
 	FILE		*fp;
-	pixman_image_t	*pixman_image;
+	pixman_image_it_t	*pixman_image;  // used
 	dev_t		 st_dev;
 	ino_t		 st_ino;
 } wp_buffer_t;
 
+
+
 typedef struct wp_option {
-	wp_buffer_t	*buffer;
+	wp_buffer_t	*buffer; // used
 	char		*filename;
-	int		 mode;
+	int		 mode;	// used
 	char		*output;
 	int		 screen;
-	wp_box_t	*trim;
+	wp_box_t	*trim; // used
 } wp_option_t;
 
 typedef struct wp_config {
@@ -78,6 +118,7 @@ typedef struct wp_config {
 	int		 daemon;
 	int		 source;
 	int		 target;
+	int      time;
 } wp_config_t;
 
 typedef struct wp_output {
@@ -95,6 +136,7 @@ wp_output_t	*get_output(wp_output_t *, char *);
 wp_output_t	*get_outputs(xcb_connection_t *, xcb_screen_t *);
 pixman_image_t	*load_jpeg(FILE *);
 pixman_image_t	*load_png(FILE *);
+pixman_image_it_t	*load_gif(FILE *);
 pixman_image_t	*load_xpm(xcb_connection_t *, xcb_screen_t *, FILE *);
 wp_config_t	*parse_config(char **);
 void		 stage1_sandbox(void);

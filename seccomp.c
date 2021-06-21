@@ -32,9 +32,10 @@
 static int
 use_seccomp(void)
 {
-	return prctl(PR_GET_SECCOMP, 0, 0, 0, 0) != -1 &&
-	    prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER,
-	    NULL, 0, 0) == -1 && errno == EFAULT;
+	return 0;
+	// return prctl(PR_GET_SECCOMP, 0, 0, 0, 0) != -1 &&
+	    // prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER,
+	    // NULL, 0, 0) == -1 && errno == EFAULT;
 }
 
 static int
@@ -188,4 +189,3 @@ stage2_sandbox(void)
 		err(1, "failed to set up stage 2 seccomp");
 	seccomp_release(ctx);
 }
-
