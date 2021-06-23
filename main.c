@@ -365,6 +365,7 @@ static void transform(pixman_image_t *dest, wp_output_t *output,
 
 static void put_wallpaper(xcb_connection_t *c, xcb_screen_t *screen,
                           wp_output_t *output, xcb_image_t *xcb_image,
+                          wallpaper_struct_t *wallpaper,
                           xcb_pixmap_t pixmap, xcb_gcontext_t gc) {
   uint8_t *data;
   uint32_t h, max_height, row_len, sub_height;
@@ -374,15 +375,16 @@ static void put_wallpaper(xcb_connection_t *c, xcb_screen_t *screen,
   depth = screen->root_depth == 16 ? 16 : 32;
 
   debug("xcb image (%dx%d) to %s (%dx%d+%d+%d)\n", xcb_image->width,
-        xcb_image->height, output->name != NULL ? output->name : "screen",
-        output->width, output->height, output->x, output->y);
+         xcb_image->height, output->name != NULL ? output->name : "screen",
+         output->width, output->height, output->x, output->y);
 
   max_height = get_max_rows_per_request(c, xcb_image, UINT32_MAX / 4);
   if (max_height < xcb_image->height) {
-    debug("image exceeds request size limitations\n");
+    // printf("image exceeds request size limitations %d < %d\n", max_height,xcb_image->height);
 
     /* adjust for better performance */
-    max_height = get_max_rows_per_request(c, xcb_image, 65536);
+    // This is to check for our selfs yooooo
+    // max_height = get_max_rows_per_request(c, xcb_image, 65536);
 
     sub_height = max_height;
     sub = xcb_image_create_native(c, xcb_image->width, sub_height,
@@ -399,10 +401,13 @@ static void put_wallpaper(xcb_connection_t *c, xcb_screen_t *screen,
             -xcb_image->scanline_pad;
 
   data = xcb_image->data;
+
+  wallpaper->row_len = row_len;
+  wallpaper->sub_height = sub_height;
+
   for (h = 0; h < xcb_image->height; h += sub_height) {
     if (sub_height > xcb_image->height - h) {
       sub_height = xcb_image->height - h;
-      xcb_image_destroy(sub);
       sub = xcb_image_create_native(c, xcb_image->width, sub_height,
                                     XCB_IMAGE_FORMAT_Z_PIXMAP, depth, NULL, ~0,
                                     NULL);
@@ -413,21 +418,53 @@ static void put_wallpaper(xcb_connection_t *c, xcb_screen_t *screen,
     debug("put image (%dx%d+0+%d) to %s (%dx%d+%d+%d)\n", sub->width,
           sub->height, h, output->name != NULL ? output->name : "screen",
           sub->width, sub_height, output->x, output->y + h);
-    xcb_put_image(c, sub->format, pixmap, gc, sub->width, sub->height,
-                  output->x, output->y + h, 0, screen->root_depth, sub->size,
-                  data);
+
+
+    if (wallpaper->sub_wall_papers >= 10)
+      errx(1, "failed to store xcb image");
+
+    wallpaper->subs[wallpaper->sub_wall_papers++] = sub;
 
     data += row_len * sub_height;
   }
+}
 
-  if (sub != xcb_image)
-    xcb_image_destroy(sub);
+
+static void put_wallpaper_struct(xcb_connection_t *c, wallpaper_struct_t *wallpaper, screen_conf_t *screen_conf)
+{
+  uint32_t h = 0;
+  for(uint32_t i = 0; i < wallpaper->sub_wall_papers; i++)
+  {
+    uint8_t *data = ((uint8_t *)wallpaper->pixels) + i * wallpaper->row_len * wallpaper->sub_height; // Todo performance
+    xcb_image_t *sub = wallpaper->subs[i];
+
+    xcb_put_image(c, sub->format, screen_conf->pixmap, screen_conf->gc, sub->width, sub->height,
+                  wallpaper->output->x, wallpaper->output->y + h, 0, screen_conf->screen->root_depth, sub->size,
+                  data);
+
+    h += wallpaper->sub_height;
+  }
+}
+
+
+static void destory_wallpaper_struct(wallpaper_struct_t *wallpaper)
+{
+  for(uint32_t i = 0; i < wallpaper->sub_wall_papers; i++)
+  {
+    if(!wallpaper->subs[i]) break;
+
+
+    xcb_image_destroy(wallpaper->subs[i]);
+  }
+
+  free(wallpaper->pixels);
+
+  // TODO
 }
 
 static void process_output(xcb_connection_t *c, xcb_screen_t *screen,
-                           wp_output_t *output, wp_option_t *option,
+                           wp_output_t *output, wp_option_t *option, wallpaper_struct_t* wallpaper,
                            xcb_pixmap_t pixmap, xcb_gcontext_t gc) {
-  uint32_t *pixels;
   size_t len, stride;
   xcb_image_t *xcb_image;
   pixman_image_t *pixman_image;
@@ -435,10 +472,13 @@ static void process_output(xcb_connection_t *c, xcb_screen_t *screen,
   pixman_filter_t filter;
   uint8_t depth;
 
+  wallpaper->output = output;
+  wallpaper->sub_wall_papers = 0;
+
   depth = screen->root_depth == 16 ? 16 : 32;
   SAFE_MUL(stride, output->width, depth / 8);
   SAFE_MUL(len, output->height, stride);
-  pixels = xmalloc(len);
+  wallpaper->pixels = xmalloc(len);
 
   switch (screen->root_depth) {
   case 16:
@@ -456,14 +496,10 @@ static void process_output(xcb_connection_t *c, xcb_screen_t *screen,
   }
 
   pixman_image = pixman_image_create_bits(pixman_format, output->width,
-                                          output->height, pixels, stride);
+                                          output->height, wallpaper->pixels, stride);
   if (pixman_image == NULL)
     errx(1, "failed to create temporary pixman image");
 
-  // for(int i = 0; i < 10; i++)
-  // {
-  //   next_image(option->buffer->pixman_image);
-  // }
 
   if (option->mode == MODE_TILE)
     tile(pixman_image, output, option);
@@ -472,15 +508,16 @@ static void process_output(xcb_connection_t *c, xcb_screen_t *screen,
 
   xcb_image = xcb_image_create_native(c, output->width, output->height,
                                       XCB_IMAGE_FORMAT_Z_PIXMAP, depth, NULL,
-                                      len, (uint8_t *)pixels);
+                                      len, (uint8_t *)wallpaper->pixels);
   if (xcb_image == NULL)
     errx(1, "failed to create xcb image");
 
-  put_wallpaper(c, screen, output, xcb_image, pixmap, gc);
 
-  xcb_image_destroy(xcb_image);
+
+  put_wallpaper(c, screen, output, xcb_image, wallpaper, pixmap, gc);
+
   pixman_image_unref(pixman_image);
-  free(pixels);
+  xcb_image_destroy(xcb_image);
 }
 
 static void process_atoms(xcb_connection_t *c, xcb_screen_t *screen,
@@ -549,8 +586,11 @@ static void process_atoms(xcb_connection_t *c, xcb_screen_t *screen,
   }
 }
 
-static void process_screen(xcb_connection_t *c, xcb_screen_t *screen, int snum,
-                           wp_config_t *config) {
+static screen_conf_t process_screen(xcb_connection_t *c, xcb_screen_t *screen, int snum,
+                           wallpaper_struct_t *wallpapers, wp_config_t *config) {
+  screen_conf_t screen_conf;
+  screen_conf.freed = 0;
+  screen_conf.screen = screen;
   xcb_pixmap_t pixmap, result;
   xcb_gcontext_t gc;
   xcb_get_geometry_cookie_t geom_cookie;
@@ -601,7 +641,6 @@ static void process_screen(xcb_connection_t *c, xcb_screen_t *screen, int snum,
     pixmap = XCB_BACK_PIXMAP_NONE;
 
   if (pixmap == XCB_BACK_PIXMAP_NONE) {
-    printf("creating pixmap (%dx%d)\n", width, height);
     pixmap = xcb_generate_id(c);
     xcb_create_pixmap(c, screen->root_depth, pixmap, screen->root, width,
                       height);
@@ -627,40 +666,48 @@ static void process_screen(xcb_connection_t *c, xcb_screen_t *screen, int snum,
 
     // if (opt->output != NULL && strcmp(opt->output, "all") == 0)
     for (output = outputs; output->name != NULL; output++)
-      process_output(c, screen, output, opt, pixmap, gc);
-    // else {
-    // output = get_output(outputs, opt->output);
-    // if (output != NULL)
-    //   process_output(c, screen, output, opt, pixmap, gc);
-  }
-  // }
-
-  if (options == NULL)
-    result = XCB_BACK_PIXMAP_NONE;
-  else
-    result = pixmap;
-
-  xcb_free_gc(c, gc);
-  if (config->target & TARGET_ROOT) {
-    /* always set a pixmap, even before clearing */
-    xcb_change_window_attributes(c, screen->root, XCB_CW_BACK_PIXMAP, &pixmap);
-    if (result == XCB_BACK_PIXMAP_NONE) {
-      xcb_change_window_attributes(c, screen->root, XCB_CW_BACK_PIXMAP,
-                                   &result);
-      xcb_free_pixmap(c, pixmap);
+    {
+      process_output(c, screen, output, opt, wallpapers, pixmap, gc);
+      wallpapers ++;
     }
   }
-  if (config->target & TARGET_ATOMS) {
-    process_atoms(c, screen, &result, NULL);
-    if (!reuse)
-      xcb_kill_client(c, XCB_KILL_ALL_TEMPORARY);
-    xcb_set_close_down_mode(c, XCB_CLOSE_DOWN_RETAIN_TEMPORARY);
-  } else
-    xcb_free_pixmap(c, pixmap);
-  xcb_request_check(c, xcb_clear_area(c, 0, screen->root, 0, 0, 0, 0));
 
-  // if (outputs != &tile_output)
-  //   free_outputs(outputs);
+  screen_conf.gc = gc;
+  screen_conf.pixmap = pixmap;
+
+  return screen_conf;
+}
+
+static void put_screen(xcb_connection_t *c, screen_conf_t *screen_conf, wallpaper_struct_t *wallpapers, wp_config_t *config)
+{
+
+  while(wallpapers->pixels)
+  {
+    put_wallpaper_struct(c, wallpapers, screen_conf);
+    wallpapers ++;
+  }
+
+
+
+  if (config->target & TARGET_ROOT) {
+    /* always set a pixmap, even before clearing */
+    xcb_change_window_attributes(c, screen_conf->screen->root, XCB_CW_BACK_PIXMAP, &screen_conf->pixmap);
+  }
+
+  if (config->target & TARGET_ATOMS) {
+    process_atoms(c, screen_conf->screen, &screen_conf->pixmap, NULL);
+    // if (!reuse)
+    //   xcb_kill_client(c, XCB_KILL_ALL_TEMPORARY);
+    xcb_set_close_down_mode(c, XCB_CLOSE_DOWN_RETAIN_TEMPORARY);
+  }
+
+  xcb_request_check(c, xcb_clear_area(c, 0, screen_conf->screen->root, 0, 0, 0, 0));
+}
+
+static void free_screen(xcb_connection_t *c, screen_conf_t *screen_conf)
+{
+  if(!screen_conf->freed ++)
+    xcb_free_gc(c, screen_conf->gc); // IDK
 }
 
 static void usage(void) {
@@ -674,31 +721,6 @@ static void usage(void) {
       "  [--version]\n");
   exit(1);
 }
-
-#ifdef WITH_RANDR
-static void process_event(wp_config_t *config, xcb_connection_t *c,
-                          xcb_generic_event_t *event) {
-  xcb_randr_screen_change_notify_event_t *randr_event;
-  xcb_screen_iterator_t it;
-  int snum;
-
-  randr_event = (xcb_randr_screen_change_notify_event_t *)event;
-  debug("event received: response_type=%u, sequence=%u\n",
-        randr_event->response_type, randr_event->sequence);
-  it = xcb_setup_roots_iterator(xcb_get_setup(c));
-  for (snum = 0; it.rem; snum++, xcb_screen_next(&it)) {
-    if (it.data->root == randr_event->root) {
-      it.data->width_in_pixels = randr_event->width;
-      it.data->height_in_pixels = randr_event->height;
-      process_screen(c, it.data, snum, config);
-    }
-  }
-  xcb_request_check(
-      c, xcb_set_close_down_mode(c, XCB_CLOSE_DOWN_RETAIN_PERMANENT));
-  if (xcb_connection_has_error(c))
-    warnx("error encountered while setting wallpaper");
-}
-#endif /* WITH_RANDR */
 
 int main(int argc, char *argv[]) {
   wp_config_t *config;
@@ -750,10 +772,32 @@ int main(int argc, char *argv[]) {
     screens[screen_at++] = it.data;
   }
 
+  if(config->options->buffer->pixman_image->size > 100)
+  {
+        errx(1, "exceeded maximum of 100 frames");
+  }
+  //[frame][screen][output]
+  wallpaper_struct_t wallpapers[100][3][10] = {0};
+  screen_conf_t screen_confs[100][3] = {0};
+
+  for(int frame = 0; frame < config->options->buffer->pixman_image->size; frame++)
+  {
+    printf("Frame %d/%d\n", frame+1, config->options->buffer->pixman_image->size);
+
+    for (int i = 0; i < screen_count; i++)
+      screen_confs[frame][i] = process_screen(c, screens[i], snum, wallpapers[frame][i], config);
+
+    if(!config->time) break;
+
+    next_image(config->options->buffer->pixman_image);
+  }
+
+
+  int frame = 0;
   if(config->time) {
     while (1) {
       for (int i = 0; i < screen_count; i++) {
-        process_screen(c, screens[i], snum, config);
+        put_screen(c, &screen_confs[frame][i], wallpapers[frame][i], config);
       }
 
       if (xcb_connection_has_error(c))
@@ -761,29 +805,21 @@ int main(int argc, char *argv[]) {
 
       unsigned int mSeconds = config->time * 1000;
       usleep(mSeconds);
-      next_image(config->options->buffer->pixman_image);
+
+      frame ++;
+      if(frame >= config->options->buffer->pixman_image->size)
+      {
+        frame = 0;
+      }
     }
   }else{
     for (int i = 0; i < screen_count; i++) {
-      process_screen(c, screens[i], snum, config);
+      put_screen(c, &screen_confs[frame][i], wallpapers[frame][i], config);
     }
 
     if (xcb_connection_has_error(c))
       printf("error encountered while setting wallpaper");
   }
-
-#ifdef WITH_RANDR
-  if (config->daemon) {
-    it = xcb_setup_roots_iterator(xcb_get_setup(c));
-    for (snum = 0; it.rem; snum++, xcb_screen_next(&it))
-      xcb_request_check(
-          c, xcb_randr_select_input(c, it.data->root,
-                                    XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE));
-
-    while ((event = xcb_wait_for_event(c)) != NULL)
-      process_event(config, c, event);
-  }
-#endif /* WITH_RANDR */
 
   xcb_disconnect(c);
 

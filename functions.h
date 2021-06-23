@@ -15,6 +15,7 @@
  */
 
 #include <xcb/xcb.h>
+#include <xcb/xcb_image.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -126,6 +127,21 @@ typedef struct wp_output {
 	int16_t x, y;
 	uint16_t width, height;
 } wp_output_t;
+
+typedef struct wallpaper_struct {
+	uint32_t *pixels;
+	wp_output_t *output;
+	uint32_t sub_wall_papers, row_len, sub_height;
+	xcb_image_t *subs[10];
+} wallpaper_struct_t;
+
+typedef struct screen_conf {
+	uint32_t freed;
+	xcb_gcontext_t gc;
+	xcb_screen_t *screen;
+	xcb_pixmap_t pixmap;
+} screen_conf_t;
+
 
 extern int	 has_randr;
 extern int	 show_debug;
