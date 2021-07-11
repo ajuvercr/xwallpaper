@@ -54,6 +54,8 @@
 typedef struct pixman_image_it {
 	pixman_image_t	**pixman_images;
 	int size, at;
+	long *times;
+	long time;
 } pixman_image_it_t;
 
 static
@@ -78,6 +80,8 @@ pixman_image_t *next_image(pixman_image_it_t *it)
 	it->at++;
 	if(it->at >= it->size)
 		it->at = 0;
+
+	it->time = it->times[it->at];
 	pixman_image_t *out = it->pixman_images[it->at];
 	return out;
 }
@@ -133,6 +137,7 @@ typedef struct wallpaper_struct {
 	wp_output_t *output;
 	uint32_t sub_wall_papers, row_len, sub_height;
 	xcb_image_t *subs[10];
+	long sleep;
 } wallpaper_struct_t;
 
 typedef struct screen_conf {

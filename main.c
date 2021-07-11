@@ -30,14 +30,14 @@
 #include <string.h>
 #include <unistd.h>
 
-
 #define ATOM_ESETROOT "ESETROOT_PMAP_ID"
 #define ATOM_XSETROOT "_XROOTPMAP_ID"
 
 #define MAXIMUM(x, y) ((x) > (y) ? (x) : (y))
 
 static uint32_t get_max_rows_per_request(xcb_connection_t *c,
-                                         xcb_image_t *image, uint32_t n) {
+                                         xcb_image_t *image, uint32_t n)
+{
   uint32_t max_len, max_req_len, row_len, max_height;
 
   max_req_len = xcb_get_maximum_request_length(c);
@@ -59,13 +59,15 @@ static uint32_t get_max_rows_per_request(xcb_connection_t *c,
 }
 
 static pixman_image_it_t *load_pixman_image(xcb_connection_t *c,
-                                            xcb_screen_t *screen, FILE *fp) {
+                                            xcb_screen_t *screen, FILE *fp)
+{
   pixman_image_it_t *pixman_image;
 
   pixman_image = NULL;
 
 #ifdef WITH_PNG
-  if (pixman_image == NULL) {
+  if (pixman_image == NULL)
+  {
     rewind(fp);
     pixman_image_t *img = load_png(fp);
     if (img)
@@ -73,7 +75,8 @@ static pixman_image_it_t *load_pixman_image(xcb_connection_t *c,
   }
 #endif /* WITH_PNG */
 #ifdef WITH_JPEG
-  if (pixman_image == NULL) {
+  if (pixman_image == NULL)
+  {
     rewind(fp);
     pixman_image_t *img = load_jpeg(fp);
     if (img)
@@ -81,7 +84,8 @@ static pixman_image_it_t *load_pixman_image(xcb_connection_t *c,
   }
 #endif /* WITH_JPEG */
 #ifdef WITH_XPM
-  if (pixman_image == NULL) {
+  if (pixman_image == NULL)
+  {
     rewind(fp);
     pixman_image_t *img = load_xpm(c, screen, fp);
     if (img)
@@ -89,7 +93,8 @@ static pixman_image_it_t *load_pixman_image(xcb_connection_t *c,
   }
 #endif /* WITH_XPM */
 
-  if (pixman_image == NULL) {
+  if (pixman_image == NULL)
+  {
     rewind(fp);
     pixman_image = load_gif(fp);
   }
@@ -98,12 +103,14 @@ static pixman_image_it_t *load_pixman_image(xcb_connection_t *c,
 }
 
 static void load_pixman_images(xcb_connection_t *c, xcb_screen_t *screen,
-                               wp_option_t *options) {
+                               wp_option_t *options)
+{
   wp_option_t *opt;
   pixman_image_it_t *img;
 
   for (opt = options; opt != NULL && opt->filename != NULL; opt++)
-    if (opt->buffer->pixman_image == NULL) {
+    if (opt->buffer->pixman_image == NULL)
+    {
       int height, width;
 
       debug("loading %s\n", opt->filename);
@@ -119,7 +126,8 @@ static void load_pixman_images(xcb_connection_t *c, xcb_screen_t *screen,
       if (height > UINT16_MAX || width > UINT16_MAX)
         errx(1, "%s has illegal dimensions", opt->filename);
 
-      if (opt->trim != NULL) {
+      if (opt->trim != NULL)
+      {
         wp_box_t *trim = opt->trim;
 
         if (height < trim->y_off + trim->height ||
@@ -130,19 +138,23 @@ static void load_pixman_images(xcb_connection_t *c, xcb_screen_t *screen,
 }
 
 static void tile(pixman_image_t *dest, wp_output_t *output,
-                 wp_option_t *option) {
+                 wp_option_t *option)
+{
   pixman_image_t *pixman_image;
   int src_width, src_height, src_x, src_y;
   uint16_t off_x, off_y;
 
   pixman_image = current_image(option->buffer->pixman_image);
 
-  if (option->trim == NULL) {
+  if (option->trim == NULL)
+  {
     src_width = pixman_image_get_width(pixman_image);
     src_height = pixman_image_get_height(pixman_image);
     src_x = 0;
     src_y = 0;
-  } else {
+  }
+  else
+  {
     src_width = option->trim->width;
     src_height = option->trim->height;
     src_x = option->trim->x_off;
@@ -158,7 +170,8 @@ static void tile(pixman_image_t *dest, wp_output_t *output,
    * screen with RandR. If possible, xwallpaper will let
    * X do the tiling natively.
    */
-  for (off_y = 0; off_y < output->height; off_y += src_height) {
+  for (off_y = 0; off_y < output->height; off_y += src_height)
+  {
     uint16_t h;
 
     if (off_y + src_height > output->height)
@@ -166,7 +179,8 @@ static void tile(pixman_image_t *dest, wp_output_t *output,
     else
       h = src_height;
 
-    for (off_x = 0; off_x < output->width; off_x += src_width) {
+    for (off_x = 0; off_x < output->width; off_x += src_width)
+    {
       uint16_t w;
 
       if (off_x + src_width > output->width)
@@ -183,7 +197,8 @@ static void tile(pixman_image_t *dest, wp_output_t *output,
 }
 
 static void transform(pixman_image_t *dest, wp_output_t *output,
-                      wp_option_t *option, pixman_filter_t filter) {
+                      wp_option_t *option, pixman_filter_t filter)
+{
   pixman_image_t *pixman_image;
   pixman_f_transform_t ftransform;
   pixman_transform_t transform;
@@ -202,19 +217,23 @@ static void transform(pixman_image_t *dest, wp_output_t *output,
   xcb_width = output->width;
   xcb_height = output->height;
 
-  if (option->trim == NULL) {
+  if (option->trim == NULL)
+  {
     src_width = pix_width;
     src_height = pix_height;
     off_x = 0;
     off_y = 0;
-  } else {
+  }
+  else
+  {
     src_width = option->trim->width;
     src_height = option->trim->height;
     off_x = (float)option->trim->x_off;
     off_y = (float)option->trim->y_off;
   }
 
-  if (mode == MODE_FOCUS) {
+  if (mode == MODE_FOCUS)
+  {
     float target_x, target_y;
     uint16_t target_width, target_height;
     float ratio;
@@ -236,7 +255,8 @@ static void transform(pixman_image_t *dest, wp_output_t *output,
      * This guarantees that we never zoom in further than needed
      * even on very small trim boxes.
      */
-    if (pix_width > xcb_width && pix_height > xcb_height) {
+    if (pix_width > xcb_width && pix_height > xcb_height)
+    {
       /*
        * If the input image is larger than output, then use
        * output dimensions. No zooming in occurs and leads
@@ -244,7 +264,9 @@ static void transform(pixman_image_t *dest, wp_output_t *output,
        */
       target_width = xcb_width;
       target_height = xcb_height;
-    } else {
+    }
+    else
+    {
       /*
        * At least one dimension of input image is smaller than
        * the corresponding output dimension. Zooming in is
@@ -257,10 +279,13 @@ static void transform(pixman_image_t *dest, wp_output_t *output,
       debug("minimum box check: rx = %f, ry = %f\n", rx, ry);
 
       /* Zoom in and keep aspect ratio of output. */
-      if (rx < ry) {
+      if (rx < ry)
+      {
         target_width = MAXIMUM(1, pix_height * ratio);
         target_height = pix_height;
-      } else {
+      }
+      else
+      {
         target_width = pix_width;
         target_height = MAXIMUM(1, pix_width / ratio);
       }
@@ -272,7 +297,8 @@ static void transform(pixman_image_t *dest, wp_output_t *output,
      * Otherwise it means that box must be zoomed out to cover the
      * whole trim box. Black borders can occur due to this.
      */
-    if (src_width > target_width || src_height > target_height) {
+    if (src_width > target_width || src_height > target_height)
+    {
       float rx, ry;
 
       rx = (float)src_width / target_width;
@@ -280,10 +306,13 @@ static void transform(pixman_image_t *dest, wp_output_t *output,
       debug("target box check: rx = %f, ry = %f\n", rx, ry);
 
       /* Zoom out and keep aspect ratio of output. */
-      if (rx < ry) {
+      if (rx < ry)
+      {
         target_width = MAXIMUM(1, src_height * ratio);
         target_height = src_height;
-      } else {
+      }
+      else
+      {
         target_width = src_width;
         target_height = MAXIMUM(1, src_width / ratio);
       }
@@ -301,13 +330,15 @@ static void transform(pixman_image_t *dest, wp_output_t *output,
     target_x = MAXIMUM(0, off_x - (target_width - src_width) / 2);
     target_y = MAXIMUM(0, off_y - (target_height - src_height) / 2);
 
-    if (target_width > pix_width - target_x) {
+    if (target_width > pix_width - target_x)
+    {
       if (target_width > pix_width)
         target_x = (pix_width - target_width) / 2;
       else
         target_x = pix_width - target_width;
     }
-    if (target_height > pix_height - target_y) {
+    if (target_height > pix_height - target_y)
+    {
       if (target_height > pix_height)
         target_y = (pix_height - target_height) / 2;
       else
@@ -327,7 +358,8 @@ static void transform(pixman_image_t *dest, wp_output_t *output,
   w_scale = (float)src_width / xcb_width;
   h_scale = (float)src_height / xcb_height;
 
-  switch (mode) {
+  switch (mode)
+  {
   case MODE_CENTER:
     filter = PIXMAN_FILTER_FAST;
     w_scale = 1;
@@ -366,7 +398,8 @@ static void transform(pixman_image_t *dest, wp_output_t *output,
 static void put_wallpaper(xcb_connection_t *c, xcb_screen_t *screen,
                           wp_output_t *output, xcb_image_t *xcb_image,
                           wallpaper_struct_t *wallpaper,
-                          xcb_pixmap_t pixmap, xcb_gcontext_t gc) {
+                          xcb_pixmap_t pixmap, xcb_gcontext_t gc)
+{
   uint8_t *data;
   uint32_t h, max_height, row_len, sub_height;
   xcb_image_t *sub;
@@ -375,11 +408,12 @@ static void put_wallpaper(xcb_connection_t *c, xcb_screen_t *screen,
   depth = screen->root_depth == 16 ? 16 : 32;
 
   debug("xcb image (%dx%d) to %s (%dx%d+%d+%d)\n", xcb_image->width,
-         xcb_image->height, output->name != NULL ? output->name : "screen",
-         output->width, output->height, output->x, output->y);
+        xcb_image->height, output->name != NULL ? output->name : "screen",
+        output->width, output->height, output->x, output->y);
 
   max_height = get_max_rows_per_request(c, xcb_image, UINT32_MAX / 4);
-  if (max_height < xcb_image->height) {
+  if (max_height < xcb_image->height)
+  {
     // printf("image exceeds request size limitations %d < %d\n", max_height,xcb_image->height);
 
     /* adjust for better performance */
@@ -392,7 +426,9 @@ static void put_wallpaper(xcb_connection_t *c, xcb_screen_t *screen,
                                   NULL);
     if (sub == NULL)
       errx(1, "failed to create xcb image");
-  } else {
+  }
+  else
+  {
     sub = xcb_image;
     sub_height = xcb_image->height;
   }
@@ -405,8 +441,10 @@ static void put_wallpaper(xcb_connection_t *c, xcb_screen_t *screen,
   wallpaper->row_len = row_len;
   wallpaper->sub_height = sub_height;
 
-  for (h = 0; h < xcb_image->height; h += sub_height) {
-    if (sub_height > xcb_image->height - h) {
+  for (h = 0; h < xcb_image->height; h += sub_height)
+  {
+    if (sub_height > xcb_image->height - h)
+    {
       sub_height = xcb_image->height - h;
       sub = xcb_image_create_native(c, xcb_image->width, sub_height,
                                     XCB_IMAGE_FORMAT_Z_PIXMAP, depth, NULL, ~0,
@@ -419,7 +457,6 @@ static void put_wallpaper(xcb_connection_t *c, xcb_screen_t *screen,
           sub->height, h, output->name != NULL ? output->name : "screen",
           sub->width, sub_height, output->x, output->y + h);
 
-
     if (wallpaper->sub_wall_papers >= 10)
       errx(1, "failed to store xcb image");
 
@@ -429,11 +466,10 @@ static void put_wallpaper(xcb_connection_t *c, xcb_screen_t *screen,
   }
 }
 
-
 static void put_wallpaper_struct(xcb_connection_t *c, wallpaper_struct_t *wallpaper, screen_conf_t *screen_conf)
 {
   uint32_t h = 0;
-  for(uint32_t i = 0; i < wallpaper->sub_wall_papers; i++)
+  for (uint32_t i = 0; i < wallpaper->sub_wall_papers; i++)
   {
     uint8_t *data = ((uint8_t *)wallpaper->pixels) + i * wallpaper->row_len * wallpaper->sub_height; // Todo performance
     xcb_image_t *sub = wallpaper->subs[i];
@@ -446,13 +482,12 @@ static void put_wallpaper_struct(xcb_connection_t *c, wallpaper_struct_t *wallpa
   }
 }
 
-
 static void destory_wallpaper_struct(wallpaper_struct_t *wallpaper)
 {
-  for(uint32_t i = 0; i < wallpaper->sub_wall_papers; i++)
+  for (uint32_t i = 0; i < wallpaper->sub_wall_papers; i++)
   {
-    if(!wallpaper->subs[i]) break;
-
+    if (!wallpaper->subs[i])
+      break;
 
     xcb_image_destroy(wallpaper->subs[i]);
   }
@@ -463,8 +498,9 @@ static void destory_wallpaper_struct(wallpaper_struct_t *wallpaper)
 }
 
 static void process_output(xcb_connection_t *c, xcb_screen_t *screen,
-                           wp_output_t *output, wp_option_t *option, wallpaper_struct_t* wallpaper,
-                           xcb_pixmap_t pixmap, xcb_gcontext_t gc) {
+                           wp_output_t *output, wp_option_t *option, wallpaper_struct_t *wallpaper,
+                           xcb_pixmap_t pixmap, xcb_gcontext_t gc)
+{
   size_t len, stride;
   xcb_image_t *xcb_image;
   pixman_image_t *pixman_image;
@@ -480,7 +516,8 @@ static void process_output(xcb_connection_t *c, xcb_screen_t *screen,
   SAFE_MUL(len, output->height, stride);
   wallpaper->pixels = xmalloc(len);
 
-  switch (screen->root_depth) {
+  switch (screen->root_depth)
+  {
   case 16:
     pixman_format = PIXMAN_r5g6b5;
     filter = PIXMAN_FILTER_BEST;
@@ -500,7 +537,6 @@ static void process_output(xcb_connection_t *c, xcb_screen_t *screen,
   if (pixman_image == NULL)
     errx(1, "failed to create temporary pixman image");
 
-
   if (option->mode == MODE_TILE)
     tile(pixman_image, output, option);
   else
@@ -512,16 +548,15 @@ static void process_output(xcb_connection_t *c, xcb_screen_t *screen,
   if (xcb_image == NULL)
     errx(1, "failed to create xcb image");
 
-
-
   put_wallpaper(c, screen, output, xcb_image, wallpaper, pixmap, gc);
 
-  pixman_image_unref(pixman_image);
-  xcb_image_destroy(xcb_image);
+  // pixman_image_unref(pixman_image);
+  // xcb_image_destroy(xcb_image);
 }
 
 static void process_atoms(xcb_connection_t *c, xcb_screen_t *screen,
-                          xcb_pixmap_t *pixmap, xcb_pixmap_t *old_pixmap) {
+                          xcb_pixmap_t *pixmap, xcb_pixmap_t *old_pixmap)
+{
   static xcb_void_cookie_t (*delete)(xcb_connection_t *, uint32_t) =
       xcb_kill_client;
   int i;
@@ -544,7 +579,8 @@ static void process_atoms(xcb_connection_t *c, xcb_screen_t *screen,
       property_cookie[i] = xcb_get_property(
           c, 0, screen->root, atom_reply[i]->atom, XCB_ATOM_PIXMAP, 0, 1);
 
-  for (i = 0; i < 2; i++) {
+  for (i = 0; i < 2; i++)
+  {
     if (atom_reply[i] != NULL)
       property_reply[i] = xcb_get_property_reply(c, property_cookie[i], NULL);
     else
@@ -562,23 +598,28 @@ static void process_atoms(xcb_connection_t *c, xcb_screen_t *screen,
   if (pixmap != NULL)
     delete = xcb_free_pixmap;
 
-  if (old_pixmap != NULL) {
+  if (old_pixmap != NULL)
+  {
     if (old[0] != NULL && old[1] != NULL && *old[0] == *old[1])
       *old_pixmap = *old[0];
     else
       *old_pixmap = XCB_BACK_PIXMAP_NONE;
   }
 
-  for (i = 0; i < 2; i++) {
-    if (pixmap != NULL) {
-      if (atom_reply[i] != NULL) {
+  for (i = 0; i < 2; i++)
+  {
+    if (pixmap != NULL)
+    {
+      if (atom_reply[i] != NULL)
+      {
         if (*pixmap == XCB_BACK_PIXMAP_NONE)
           xcb_delete_property(c, screen->root, atom_reply[i]->atom);
         else
           xcb_change_property(c, XCB_PROP_MODE_REPLACE, screen->root,
                               atom_reply[i]->atom, XCB_ATOM_PIXMAP, 32, 1,
                               pixmap);
-      } else
+      }
+      else
         warnx("failed to update atoms");
     }
     free(property_reply[i]);
@@ -587,7 +628,8 @@ static void process_atoms(xcb_connection_t *c, xcb_screen_t *screen,
 }
 
 static screen_conf_t process_screen(xcb_connection_t *c, xcb_screen_t *screen, int snum,
-                           wallpaper_struct_t *wallpapers, wp_config_t *config) {
+                                    wallpaper_struct_t *wallpapers, wp_config_t *config)
+{
   screen_conf_t screen_conf;
   screen_conf.freed = 0;
   screen_conf.screen = screen;
@@ -606,7 +648,8 @@ static screen_conf_t process_screen(xcb_connection_t *c, xcb_screen_t *screen, i
 
   /* let X perform non-randr tiling if requested */
   if (options != NULL && options[0].mode == MODE_TILE &&
-      options[0].output == NULL && options[1].filename == NULL) {
+      options[0].output == NULL && options[1].filename == NULL)
+  {
     pixman_image_t *pixman_image = current_image(options->buffer->pixman_image);
 
     /* fake an output that fits the picture */
@@ -618,15 +661,19 @@ static screen_conf_t process_screen(xcb_connection_t *c, xcb_screen_t *screen, i
     tile_output.height = height;
     tile_output.name = NULL;
     outputs = &tile_output;
-  } else {
+  }
+  else
+  {
     width = screen->width_in_pixels;
     height = screen->height_in_pixels;
     outputs = get_outputs(c, screen);
   }
 
-  if (config->source == SOURCE_ATOMS) {
+  if (config->source == SOURCE_ATOMS)
+  {
     process_atoms(c, screen, NULL, &pixmap);
-    if (pixmap != XCB_BACK_PIXMAP_NONE) {
+    if (pixmap != XCB_BACK_PIXMAP_NONE)
+    {
       geom_cookie = xcb_get_geometry(c, pixmap);
       geom_reply = xcb_get_geometry_reply(c, geom_cookie, NULL);
       if (geom_reply == NULL || geom_reply->width != width ||
@@ -637,10 +684,12 @@ static screen_conf_t process_screen(xcb_connection_t *c, xcb_screen_t *screen, i
         reuse = 1;
       free(geom_reply);
     }
-  } else
+  }
+  else
     pixmap = XCB_BACK_PIXMAP_NONE;
 
-  if (pixmap == XCB_BACK_PIXMAP_NONE) {
+  if (pixmap == XCB_BACK_PIXMAP_NONE)
+  {
     pixmap = xcb_generate_id(c);
     xcb_create_pixmap(c, screen->root_depth, pixmap, screen->root, width,
                       height);
@@ -651,13 +700,16 @@ static screen_conf_t process_screen(xcb_connection_t *c, xcb_screen_t *screen, i
     rectangle.width = width;
     rectangle.height = height;
     xcb_poly_fill_rectangle(c, pixmap, gc, 1, &rectangle);
-  } else {
+  }
+  else
+  {
     debug("reusing atom pixmap (%dx%d)\n", width, height);
     gc = xcb_generate_id(c);
     xcb_create_gc(c, gc, pixmap, 0, NULL);
   }
 
-  for (opt = options; opt != NULL && opt->filename != NULL; opt++) {
+  for (opt = options; opt != NULL && opt->filename != NULL; opt++)
+  {
     wp_output_t *output;
 
     /* ignore options which are not relevant for this screen */
@@ -668,7 +720,7 @@ static screen_conf_t process_screen(xcb_connection_t *c, xcb_screen_t *screen, i
     for (output = outputs; output->name != NULL; output++)
     {
       process_output(c, screen, output, opt, wallpapers, pixmap, gc);
-      wallpapers ++;
+      wallpapers++;
     }
   }
 
@@ -681,20 +733,20 @@ static screen_conf_t process_screen(xcb_connection_t *c, xcb_screen_t *screen, i
 static void put_screen(xcb_connection_t *c, screen_conf_t *screen_conf, wallpaper_struct_t *wallpapers, wp_config_t *config)
 {
 
-  while(wallpapers->pixels)
+  while (wallpapers->pixels)
   {
     put_wallpaper_struct(c, wallpapers, screen_conf);
-    wallpapers ++;
+    wallpapers++;
   }
 
-
-
-  if (config->target & TARGET_ROOT) {
+  if (config->target & TARGET_ROOT)
+  {
     /* always set a pixmap, even before clearing */
     xcb_change_window_attributes(c, screen_conf->screen->root, XCB_CW_BACK_PIXMAP, &screen_conf->pixmap);
   }
 
-  if (config->target & TARGET_ATOMS) {
+  if (config->target & TARGET_ATOMS)
+  {
     process_atoms(c, screen_conf->screen, &screen_conf->pixmap, NULL);
     // if (!reuse)
     //   xcb_kill_client(c, XCB_KILL_ALL_TEMPORARY);
@@ -706,11 +758,12 @@ static void put_screen(xcb_connection_t *c, screen_conf_t *screen_conf, wallpape
 
 static void free_screen(xcb_connection_t *c, screen_conf_t *screen_conf)
 {
-  if(!screen_conf->freed ++)
+  if (!screen_conf->freed++)
     xcb_free_gc(c, screen_conf->gc); // IDK
 }
 
-static void usage(void) {
+static void usage(void)
+{
   fprintf(
       stderr,
       "usage: xwallpaper [--screen <screen>] [--clear] [--daemon] [--debug]\n"
@@ -722,7 +775,8 @@ static void usage(void) {
   exit(1);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
   wp_config_t *config;
   xcb_connection_t *c;
   xcb_generic_event_t *event;
@@ -767,36 +821,44 @@ int main(int argc, char *argv[]) {
   int screen_at = 0;
   int screen_count = it.rem;
   screens[screen_at++] = it.data;
-  while (it.rem) {
+  while (it.rem)
+  {
     xcb_screen_next(&it);
     screens[screen_at++] = it.data;
   }
 
-  if(config->options->buffer->pixman_image->size > 100)
+  if (config->options->buffer->pixman_image->size > 100)
   {
-        errx(1, "exceeded maximum of 100 frames");
+    errx(1, "exceeded maximum of 100 frames");
   }
   //[frame][screen][output]
   wallpaper_struct_t wallpapers[100][3][10] = {0};
   screen_conf_t screen_confs[100][3] = {0};
+  long screen_times[100];
 
-  for(int frame = 0; frame < config->options->buffer->pixman_image->size; frame++)
+  for (int frame = 0; frame < config->options->buffer->pixman_image->size; frame++)
   {
-    printf("Frame %d/%d\n", frame+1, config->options->buffer->pixman_image->size);
+    printf("Frame %d/%d\n", frame + 1, config->options->buffer->pixman_image->size);
 
     for (int i = 0; i < screen_count; i++)
+    {
       screen_confs[frame][i] = process_screen(c, screens[i], snum, wallpapers[frame][i], config);
+    }
+    screen_times[frame] = config->options->buffer->pixman_image->time;
 
-    if(!config->time) break;
+    if (!config->time)
+      break;
 
     next_image(config->options->buffer->pixman_image);
   }
 
-
   int frame = 0;
-  if(config->time) {
-    while (1) {
-      for (int i = 0; i < screen_count; i++) {
+  if (config->time)
+  {
+    while (1)
+    {
+      for (int i = 0; i < screen_count; i++)
+      {
         put_screen(c, &screen_confs[frame][i], wallpapers[frame][i], config);
       }
 
@@ -804,16 +866,19 @@ int main(int argc, char *argv[]) {
         printf("error encountered while setting wallpaper");
 
       unsigned int mSeconds = config->time * 1000;
-      usleep(mSeconds);
+      usleep(screen_times[frame] * 10000);
 
-      frame ++;
-      if(frame >= config->options->buffer->pixman_image->size)
+      frame++;
+      if (frame >= config->options->buffer->pixman_image->size)
       {
         frame = 0;
       }
     }
-  }else{
-    for (int i = 0; i < screen_count; i++) {
+  }
+  else
+  {
+    for (int i = 0; i < screen_count; i++)
+    {
       put_screen(c, &screen_confs[frame][i], wallpapers[frame][i], config);
     }
 

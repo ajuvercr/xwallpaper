@@ -36,6 +36,7 @@ void Frame(void *data, struct GIF_WHDR *whdr) {
 
   if (!whdr->ifrm) { // first frame
     stat->it->pixman_images = calloc(whdr->nfrm, sizeof(pixman_image_t *));
+    stat->it->times = calloc(whdr->nfrm, sizeof(long));
     stat->it->size = whdr->nfrm - 1;
 
     ddst = (uint32_t)(whdr->xdim * whdr->ydim);
@@ -68,6 +69,7 @@ void Frame(void *data, struct GIF_WHDR *whdr) {
                                  pict_buffer, stat->width * sizeof(uint32_t));
 
   stat->it->pixman_images[whdr->ifrm - 1] = img;
+  stat->it->times[whdr->ifrm - 1] = whdr->time;
 
   if ((whdr->mode == GIF_PREV) && !stat->last) {
     whdr->frxd = whdr->xdim;
